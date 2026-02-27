@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>O/X 랜덤 1문제 퀴즈 (20초/CSV)</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif;
+      background: #f6f7fb;
+      color: #111;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    .card {
+      background: #fff; border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.06);
+      padding: 18px;
+    }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    .meta {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      font-size: 13px; color: #444; margin-bottom: 12px;
+    }
+    .pill { background: #eef2ff; border: 1px solid #dbe2ff; padding: 6px 10px; border-radius: 999px; }
+    .timerPill { background: #fff7ed; border: 1px solid #fed7aa; }
+    .question {
+      font-size: 22px; line-height: 1.35; margin: 10px 0 14px;
+      padding: 14px; border-radius: 12px; background: #fafafa; border: 1px solid #eee;
+      min-height: 72px; display: flex; align-items: center;
+      white-space: pre-wrap;
+    }
+    .btnRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 6px; }
+    button {
+      appearance: none; border: 0; border-radius: 14px; padding: 14px 12px;
+      font-size: 18px; font-weight: 700; cursor: pointer;
+      transition: transform .03s ease, filter .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .btnO { background: #e7fff1; border: 1px solid #bff3d2; }
+    .btnX { background: #ffecec; border: 1px solid #ffc3c3; }
+    .btnO:hover, .btnX:hover { filter: brightness(.98); }
+    .btnSecondary { width: 100%; background: #111; color: #fff; margin-top: 12px; }
+    .btnSecondary[disabled] { opacity: .45; cursor: not-allowed; }
+    .result {
+      margin-top: 12px; padding: 12px; border-radius: 12px;
+      border: 1px solid #e9e9e9; background: #fff; display: none;
+    }
+    .result.show { display: block; }
+    .badge {
+      display: inline-block; font-weight: 800; padding: 6px 10px; border-radius: 999px;
+      font-size: 13px; margin-right: 8px; vertical-align: middle;
+    }
+    .ok { background: #e7fff1; border: 1px solid #bff3d2; }
+    .no { background: #ffecec; border: 1px solid #ffc3c3; }
+    .neutral { background: #eef2ff; border: 1px solid #dbe2ff; }
+    .exp { margin-top: 8px; color: #222; line-height: 1.5; white-space: pre-wrap; }
+    .foot { margin-top: 14px; font-size: 12px; color: #555; }
+    .smallBtnRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .smallBtn {
+      font-size: 14px; font-weight: 700; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid #ddd; background: #fff;
+    }
+    .dangerBtn { border-color: #ffc3c3; background: #fff5f5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>O/X 랜덤 1문제 퀴즈</h1>
+
+      <div class="meta">
+        <div class="pill">문항 수: <span id="totalCount">0</span></div>
+        <div class="pill">푼 횟수: <span id="attemptCount">0</span></div>
+        <div class="pill">정답: <span id="correctCount">0</span></div>
+        <div class="pill">정답률: <span id="accuracy">0%</span></div>
+        <div class="pill timerPill">남은 시간: <span id="timer">-</span>s</div>
+      </div>
+
+      <div class="question" id="qText">시작을 누르면 문제가 나옵니다.</div>
+
+      <div class="btnRow">
+        <button class="btnO" id="btnO" disabled>O</button>
+        <button class="btnX" id="btnX" disabled>X</button>
+      </div>
+
+      <div class="result" id="resultBox">
+        <div>
+          <span class="badge" id="badge"></span>
+          <span id="resultText"></span>
+        </div>
+        <div class="exp" id="expText"></div>
+      </div>
+
+      <button class="btnSecondary" id="nextBtn">시작</button>
+
+      <div class="smallBtnRow">
+        <button class="smallBtn" id="downloadBtn" type="button">결과 CSV 다운로드</button>
+        <button class="smallBtn dangerBtn" id="resetBtn" type="button">기록 초기화</button>
+      </div>
+
+      <div class="foot">
+        • 연속으로 같은 문제는 나오지 않습니다. (그 외 중복 출제는 가능)<br/>
+        • 20초가 지나면 자동으로 “미응답” 처리됩니다.<br/>
+        • 결과는 브라우저에 저장되며, CSV로 내려받을 수 있습니다.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // answer: true = O, false = X
+    const questions = [
+      { text: "우리는 돈으로 물건이나 음식을 살 수 있다.", answer: true,  explanation: "돈은 물건이나 서비스와 교환하는 수단이에요." },
+      { text: "은행은 돈을 맡기거나 찾는 곳이다.",       answer: true,  explanation: "은행은 예금과 인출을 하는 금융기관이에요." },
+      { text: "일을 하면 월급을 받을 수 있다.",           answer: true,  explanation: "노동의 대가로 돈을 받아요." },
+      { text: "돈을 모아 두는 것을 저축이라고 한다.",      answer: true,  explanation: "저축은 미래를 위해 돈을 모아 두는 행동이에요." },
+      { text: "부모님이 주는 돈을 용돈이라고 한다.",       answer: true,  explanation: "개인이 자유롭게 쓰라고 받는 돈이에요." },
+      { text: "물건을 사고파는 곳을 시장이라고 한다.",      answer: true,  explanation: "시장은 거래가 이루어지는 장소예요." },
+      { text: "은행은 장난감을 파는 가게이다.",           answer: false, explanation: "은행은 돈을 관리하는 기관이에요." },
+      { text: "모든 물건의 가격은 항상 같다.",            answer: false, explanation: "가격은 상황에 따라 변해요." },
+      { text: "계획 없이 돈을 쓰는 것은 낭비이다.",        answer: true,  explanation: "필요하지 않은 소비는 낭비예요." },
+      { text: "대출은 돈을 빌리는 것이다.",               answer: true,  explanation: "나중에 갚기로 하고 빌리는 거래예요." },
+      { text: "세금은 국가 운영을 위해 걷는 돈이다.",      answer: true,  explanation: "세금은 공공서비스에 사용돼요." },
+      { text: "적금은 일정 금액을 정기적으로 저축하는 방식이다.", answer: true, explanation: "정기적으로 돈을 모으는 금융 상품이에요." },
+      { text: "ESG의 E는 환경(Environment)을 뜻한다.",    answer: true,  explanation: "환경 보호 활동을 의미해요." },
+      { text: "분리수거는 재활용을 위해 필요하다.",        answer: true,  explanation: "자원을 다시 사용할 수 있어요." },
+      { text: "물을 아껴 쓰는 것은 환경 보호이다.",        answer: true,  explanation: "자원 절약 행동이에요." },
+      { text: "쓰레기를 아무 데나 버려도 된다.",          answer: false, explanation: "환경 오염의 원인이 돼요." },
+      { text: "나무를 심는 것은 지구에 도움이 된다.",      answer: true,  explanation: "공기를 깨끗하게 하는 데 도움이 돼요." },
+      { text: "ESG의 S는 사회(Social)를 뜻한다.",         answer: true,  explanation: "사람과 공동체를 의미해요." },
+      { text: "전기를 켜 놓고 외출하는 것은 좋은 습관이다.", answer: false, explanation: "에너지 낭비예요." },
+      { text: "일회용품을 줄이면 환경에 도움이 된다.",     answer: true,  explanation: "쓰레기를 줄일 수 있어요." },
+      { text: "안전장비 없이 일하게 해도 괜찮다.",         answer: false, explanation: "근로자 보호에 어긋나요." },
+      { text: "직원 복지를 챙기는 기업은 사회적 책임을 실천한다.", answer: true, explanation: "사람을 존중하는 경영이에요." },
+    ];
+
+    // ====== 설정 ======
+    const TIME_LIMIT_SEC = 20;
+
+    // ====== DOM ======
+    const qText = document.getElementById("qText");
+    const btnO = document.getElementById("btnO");
+    const btnX = document.getElementById("btnX");
+    const nextBtn = document.getElementById("nextBtn");
+    const resultBox = document.getElementById("resultBox");
+    const badge = document.getElementById("badge");
+    const resultText = document.getElementById("resultText");
+    const expText = document.getElementById("expText");
+
+    const totalCount = document.getElementById("totalCount");
+    const attemptCount = document.getElementById("attemptCount");
+    const correctCount = document.getElementById("correctCount");
+    const accuracy = document.getElementById("accuracy");
+    const resetBtn = document.getElementById("resetBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const timerEl = document.getElementById("timer");
+
+    totalCount.textContent = String(questions.length);
+
+    // ====== 상태 ======
+    let lastIndex = -1;
+    let currentIndex = -1;
+    let locked = true;
+
+    let timerId = null;
+    let timeLeft = TIME_LIMIT_SEC;
+
+    // 기록 저장
+    const STATS_KEY = "ox_quiz_stats_v2";
+    const LOG_KEY   = "ox_quiz_log_v2";
+
+    const stats = loadJSON(STATS_KEY, { attempts: 0, correct: 0 });
+    const logs  = loadJSON(LOG_KEY, []); // [{...}, ...]
+
+    renderStats();
+    renderTimer("-");
+
+    function loadJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        return JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveJSON(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function renderStats() {
+      attemptCount.textContent = String(stats.attempts);
+      correctCount.textContent = String(stats.correct);
+      const pct = stats.attempts === 0 ? 0 : Math.round((stats.correct / stats.attempts) * 100);
+      accuracy.textContent = pct + "%";
+    }
+
+    function renderTimer(val) {
+      timerEl.textContent = String(val);
+    }
+
+    function stopTimer() {
+      if (timerId) clearInterval(timerId);
+      timerId = null;
+    }
+
+    function startTimer() {
+      stopTimer();
+      timeLeft = TIME_LIMIT_SEC;
+      renderTimer(timeLeft);
+
+      timerId = setInterval(() => {
+        timeLeft -= 1;
+        renderTimer(timeLeft);
+
+        if (timeLeft <= 0) {
+          stopTimer();
+          // 시간초과 = 미응답 처리
+          if (!locked) timeoutAsNoAnswer();
+        }
+      }, 1000);
+    }
+
+    function pickRandomIndexAvoidImmediateRepeat() {
+      if (questions.length <= 1) return 0;
+
+      let idx = Math.floor(Math.random() * questions.length);
+      if (idx === lastIndex) {
+        idx = (idx + 1 + Math.floor(Math.random() * (questions.length - 1))) % questions.length;
+        if (idx === lastIndex) idx = (idx + 1) % questions.length;
+      }
+      return idx;
+    }
+
+    function showNewQuestion() {
+      stopTimer();
+
+      lastIndex = currentIndex;
+      currentIndex = pickRandomIndexAvoidImmediateRepeat();
+
+      const q = questions[currentIndex];
+      qText.textContent = q.text;
+
+      locked = false;
+      btnO.disabled = false;
+      btnX.disabled = false;
+
+      resultBox.classList.remove("show");
+      badge.textContent = "";
+      resultText.textContent = "";
+      expText.textContent = "";
+
+      nextBtn.textContent = "다음 문제";
+
+      startTimer();
+    }
+
+    function timeoutAsNoAnswer() {
+      answer(null, true); // null = 미응답
+    }
+
+    function answer(userAnswer, isTimeout = false) {
+      if (locked || currentIndex < 0) return;
+      locked = true;
+      stopTimer();
+
+      const q = questions[currentIndex];
+      const correctAns = q.answer;            // true/false
+      const userAnsLabel = userAnswer === null ? "미응답" : (userAnswer ? "O" : "X");
+      const correctLabel = correctAns ? "O" : "X";
+      const ok = (userAnswer !== null) && (userAnswer === correctAns);
+
+      // 통계
+      stats.attempts += 1;
+      if (ok) stats.correct += 1;
+      saveJSON(STATS_KEY, stats);
+      renderStats();
+
+      // 로그
+      const now = new Date();
+      logs.push({
+        timestamp: now.toISOString(),
+        localTime: now.toLocaleString(),
+        question: q.text,
+        correct: correctLabel,
+        user: userAnsLabel,
+        result: ok ? "정답" : "오답",
+        timeout: isTimeout ? "Y" : "N",
+        timeLimitSec: TIME_LIMIT_SEC,
+        timeLeftSec: Math.max(0, timeLeft)
+      });
+      saveJSON(LOG_KEY, logs);
+
+      // UI 잠금
+      btnO.disabled = true;
+      btnX.disabled = true;
+
+      resultBox.classList.add("show");
+
+      if (userAnswer === null) {
+        badge.className = "badge neutral";
+        badge.textContent = "시간초과";
+        resultText.textContent = `정답은 ${correctLabel} 입니다. (내 답: 미응답)`;
+      } else {
+        badge.className = "badge " + (ok ? "ok" : "no");
+        badge.textContent = ok ? "정답" : "오답";
+        resultText.textContent = `정답은 ${correctLabel} 입니다. (내 답: ${userAnsLabel})`;
+      }
+
+      expText.textContent = q.explanation ?? "";
+    }
+
+    function csvEscape(value) {
+      const s = String(value ?? "");
+      // CSV는 콤마/따옴표/개행 있으면 따옴표로 감싸고 내부 따옴표는 2개로
+      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }
+
+    function downloadCSV() {
+      if (!logs.length) {
+        alert("저장된 결과가 없습니다. 먼저 문제를 풀어 주세요.");
+        return;
+      }
+
+      const headers = [
+        "timestamp_iso","local_time","question","correct","user","result",
+        "timeout(Y/N)","time_limit_sec","time_left_sec"
+      ];
+
+      const rows = logs.map(r => [
+        r.timestamp, r.localTime, r.question, r.correct, r.user, r.result,
+        r.timeout, r.timeLimitSec, r.timeLeftSec
+      ]);
+
+      const csv = [
+        headers.join(","),
+        ...rows.map(cols => cols.map(csvEscape).join(","))
+      ].join("\r\n");
+
+      // UTF-8 BOM(엑셀 한글 깨짐 방지)
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      const date = new Date();
+      const y = date.getFullYear();
+      const m = String(date.getMonth()+1).padStart(2,"0");
+      const d = String(date.getDate()).padStart(2,"0");
+      a.href = url;
+      a.download = `quiz_result_${y}${m}${d}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    }
+
+    btnO.addEventListener("click", () => answer(true));
+    btnX.addEventListener("click", () => answer(false));
+    nextBtn.addEventListener("click", () => showNewQuestion());
+    downloadBtn.addEventListener("click", () => downloadCSV());
+
+    resetBtn.addEventListener("click", () => {
+      if (!confirm("기록(푼 횟수/정답) + 결과 로그를 모두 초기화할까요?")) return;
+      stopTimer();
+      stats.attempts = 0;
+      stats.correct = 0;
+      saveJSON(STATS_KEY, stats);
+      logs.length = 0;
+      saveJSON(LOG_KEY, logs);
+      renderStats();
+      renderTimer("-");
+      qText.textContent = "시작을 누르면 문제가 나옵니다.";
+      resultBox.classList.remove("show");
+      btnO.disabled = true;
+      btnX.disabled = true;
+      locked = true;
+      currentIndex = -1;
+      lastIndex = -1;
+      nextBtn.textContent = "시작";
+    });
+  </script>
+</body>
+</html>
